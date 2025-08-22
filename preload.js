@@ -7,4 +7,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   selectFolder: () => ipcRenderer.invoke('dialog:openDirectory'),
   scanVideos: (folderPath) => ipcRenderer.invoke('videos:scan', folderPath),
   updateProgress: (data) => ipcRenderer.send('video:updateProgress', data),
+  windowControls: {
+    minimize: () => ipcRenderer.invoke('window:minimize'),
+    maximize: () => ipcRenderer.invoke('window:maximize'),
+    close: () => ipcRenderer.invoke('window:close')
+  }
 });

@@ -1,6 +1,6 @@
 // main.js
 
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, protocol } = require('electron');
 const path = require('path');
 const fs = require('fs/promises');
 const fsSync = require('fs');
@@ -20,6 +20,37 @@ try {
 const VIDEO_EXTENSIONS = ['.mp4', '.mkv', '.avi', '.mov', '.webm'];
 const DATA_FILE_NAME = 'videos-data.json';
 
+app.commandLine.appendSwitch('enable-accelerated-mjpeg-decode');
+app.commandLine.appendSwitch('enable-accelerated-video');
+app.commandLine.appendSwitch('ignore-gpu-blacklist');
+app.commandLine.appendSwitch('enable-native-gpu-memory-buffers');
+app.commandLine.appendSwitch('enable-gpu-rasterization');
+
+// Handlers dos controles da janela - colocar antes da função createWindow
+ipcMain.handle('window:minimize', () => {
+    const win = BrowserWindow.getFocusedWindow();
+    if (win) win.minimize();
+    return true;
+});
+
+ipcMain.handle('window:maximize', () => {
+    const win = BrowserWindow.getFocusedWindow();
+    if (win) {
+        if (win.isMaximized()) {
+            win.unmaximize();
+        } else {
+            win.maximize();
+        }
+    }
+    return true;
+});
+
+ipcMain.handle('window:close', () => {
+    const win = BrowserWindow.getFocusedWindow();
+    if (win) win.close();
+    return true;
+});
+
 // Função para criar a janela principal da aplicação
 function createWindow() {
   const win = new BrowserWindow({
@@ -30,19 +61,49 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       webSecurity: true,
+      // Remover configurações potencialmente inseguras
+      // enableBlinkFeatures: 'MediaSource,MediaSourceExperimental',
+      // chromiumMediaSourceEnabled: true,
     },
     backgroundColor: '#ffffff',
     frame: true,
     titleBarStyle: 'hidden',
-    autoHideMenuBar: true, // Esconde o menu
+    autoHideMenuBar: true,
   });
 
-  win.setMenu(null); // Remove completamente o menu
+  // Configurar CSP mais segura
+  win.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [
+          "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; media-src 'self' file: app-video:; img-src 'self' data: blob:"
+        ]
+      }
+    });
+  });
+
+  // Habilitar aceleração de hardware
+  win.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
+    const allowedPermissions = ['media', 'mediaKeySystem'];
+    if (allowedPermissions.includes(permission)) {
+      callback(true);
+    } else {
+      callback(false);
+    }
+  });
+
+  win.webContents.openDevTools(); // Descomente para debugar
   win.loadFile('index.html');
-  // win.webContents.openDevTools();
 }
 
 app.whenReady().then(() => {
+  // Registrar protocolo personalizado para vídeos
+  protocol.registerFileProtocol('app-video', (request, callback) => {
+    const filePath = decodeURI(request.url.replace('app-video://', ''));
+    callback({ path: filePath });
+  });
+
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

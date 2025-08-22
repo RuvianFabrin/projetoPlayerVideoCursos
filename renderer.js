@@ -9,12 +9,13 @@ const playerContainer = document.getElementById('player-container');
 const placeholder = document.getElementById('placeholder');
 
 // --- Estado da Aplicação ---
+dataPath = null; // Caminho do diretório atual
+structure = []; // Estrutura de pastas e arquivos
+videos = []; // Lista plana de todos os vídeos para fácil acesso
 let currentDataPath = null;
 let currentVideos = []; // Lista plana de todos os vídeos para fácil acesso
 let currentlyPlaying = null;
 let lastUpdateTime = 0;
-
-// --- Funções ---
 
 /**
  * Formata segundos para uma string de tempo (HH:MM:SS ou MM:SS).
@@ -110,62 +111,105 @@ function playVideo(video) {
     playerContainer.style.display = 'flex';
     placeholder.style.display = 'none';
 
-    videoPlayer.src = `file://${video.path}`;
-    videoPlayer.currentTime = video.watchedTime || 0;
-    videoPlayer.play();
+    try {
+        // Limpar o player
+        videoPlayer.pause();
+        videoPlayer.removeAttribute('src');
+        videoPlayer.load();
 
-    currentVideoTitleEl.textContent = video.name; // Mudado de video.title para video.name
-
-    document.querySelectorAll('.video-item').forEach(el => {
-        el.classList.remove('playing');
-        if (el.dataset.videoId === video.id) {
-            el.classList.add('playing');
+        // Usar protocolo personalizado
+        const videoPath = encodeURI(video.path.replace(/\\/g, '/'));
+        videoPlayer.src = `app-video://${videoPath}`;
+        
+        // Configurações otimizadas para Chrome/Chromium
+        videoPlayer.preload = 'metadata';
+        videoPlayer.controls = true;
+        videoPlayer.autoplay = false;
+        videoPlayer.volume = 1;
+        
+        // Adicionar atributos específicos do Chrome
+        videoPlayer.setAttribute('x-webkit-airplay', 'allow');
+        videoPlayer.setAttribute('webkit-playsinline', 'true');
+        videoPlayer.setAttribute('playsinline', 'true');
+        
+        // Restaurar tempo anterior
+        if (video.watchedTime) {
+            videoPlayer.currentTime = video.watchedTime;
         }
-    });
+
+        // Atualizar UI
+        document.querySelectorAll('.video-item').forEach(el => {
+            el.classList.remove('playing');
+            if (el.dataset.videoId === video.id) {
+                el.classList.add('playing');
+            }
+        });
+
+        currentVideoTitleEl.textContent = video.name;
+
+        // Iniciar reprodução com tratamento de erro melhorado
+        videoPlayer.play().catch(error => {
+            console.error('Erro ao reproduzir:', error);
+            // Tentar novamente após um pequeno delay
+            setTimeout(() => videoPlayer.play(), 100);
+        });
+
+    } catch (error) {
+        console.error('Erro ao configurar vídeo:', error);
+    }
 }
 
 /**
  * Atualiza o progresso do vídeo no estado e na UI.
  */
 function updateProgress() {
-    if (!currentlyPlaying) return;
+    if (!currentlyPlaying || !videoPlayer) return;
 
     const video = currentVideos.find(v => v.id === currentlyPlaying.id);
     if (!video) return;
 
-    video.watchedTime = videoPlayer.currentTime;
-    video.totalDuration = videoPlayer.duration;
+    const currentTime = videoPlayer.currentTime;
+    const duration = videoPlayer.duration;
 
-    if (!isNaN(video.totalDuration) && video.watchedTime / video.totalDuration >= 0.99) {
-        video.completed = true;
-    }
+    if (!isNaN(currentTime) && !isNaN(duration)) {
+        video.watchedTime = currentTime;
+        video.totalDuration = duration;
 
-    const itemEl = document.querySelector(`[data-video-id="${video.id}"]`);
-    if (itemEl) {
-        const progressBar = itemEl.querySelector('.bg-indigo-500');
-        const progressPercentage = (video.watchedTime / video.totalDuration) * 100;
-        progressBar.style.width = `${progressPercentage}%`;
-        
-        const timeDisplay = itemEl.querySelector('.text-xs');
-        timeDisplay.textContent = `${formatTime(video.watchedTime)} / ${formatTime(video.totalDuration)}`;
+        if (currentTime / duration >= 0.99) {
+            video.completed = true;
+        }
 
-        if (video.completed && !itemEl.classList.contains('border-green-500')) {
-            itemEl.classList.add('border-l-4', 'border-green-500');
-            if (!itemEl.querySelector('.text-green-400')) {
-                 itemEl.querySelector('.flex').insertAdjacentHTML('beforeend', '<span class="text-green-400">✔</span>');
+        const itemEl = document.querySelector(`[data-video-id="${video.id}"]`);
+        if (itemEl) {
+            const progressBar = itemEl.querySelector('.bg-indigo-500');
+            const progressPercentage = (currentTime / duration) * 100;
+            if (progressBar) {
+                progressBar.style.width = `${progressPercentage}%`;
+            }
+            
+            const timeDisplay = itemEl.querySelector('.text-xs');
+            if (timeDisplay) {
+                timeDisplay.textContent = `${formatTime(currentTime)} / ${formatTime(duration)}`;
+            }
+
+            if (video.completed && !itemEl.classList.contains('border-green-500')) {
+                itemEl.classList.add('border-l-4', 'border-green-500');
+                if (!itemEl.querySelector('.text-green-400')) {
+                    itemEl.querySelector('.flex').insertAdjacentHTML('beforeend', '<span class="text-green-400">✔</span>');
+                }
             }
         }
-    }
 
-    const now = Date.now();
-    if (now - lastUpdateTime > 3000) { // Salva a cada 3 segundos
-        window.electronAPI.updateProgress({ dataPath: currentDataPath, video });
-        lastUpdateTime = now;
+        // Salvar progresso
+        const now = Date.now();
+        if (now - lastUpdateTime > 3000) {
+            window.electronAPI.updateProgress({ dataPath: currentDataPath, video });
+            lastUpdateTime = now;
+        }
     }
 }
 
 // --- Event Listeners ---
-
 selectFolderBtn.addEventListener('click', async () => {
     const folderPath = await window.electronAPI.selectFolder();
     if (folderPath) {
@@ -173,9 +217,9 @@ selectFolderBtn.addEventListener('click', async () => {
         const { structure, dataPath, videos } = await window.electronAPI.scanVideos(folderPath);
         
         currentDataPath = dataPath;
-        currentVideos = videos; // Mantém a lista plana para buscas rápidas
+        currentVideos = videos;
         
-        videoListEl.innerHTML = ''; // Limpa a lista
+        videoListEl.innerHTML = '';
         if (structure.length === 0) {
             videoListEl.innerHTML = '<p class="text-gray-400">Nenhum vídeo encontrado na pasta.</p>';
         } else {
@@ -193,6 +237,57 @@ videoPlayer.addEventListener('ended', () => {
         updateProgress();
         window.electronAPI.updateProgress({ dataPath: currentDataPath, video });
     }
+});
+
+// Controles da janela
+document.getElementById('minimizeBtn').addEventListener('click', async () => {
+    await window.electronAPI.windowControls.minimize();
+});
+
+document.getElementById('maximizeBtn').addEventListener('click', async () => {
+    await window.electronAPI.windowControls.maximize();
+});
+
+document.getElementById('closeBtn').addEventListener('click', async () => {
+    await window.electronAPI.windowControls.close();
+});
+
+// Estado inicial da UI
+playerContainer.style.display = 'none';
+placeholder.style.display = 'block';
+        currentDataPath = dataPath;
+        currentVideos = videos; // Mantém a lista plana para buscas rápidas
+        
+        videoListEl.innerHTML = ''; // Limpa a lista
+        if (structure.length === 0) {
+            videoListEl.innerHTML = '<p class="text-gray-400">Nenhum vídeo encontrado na pasta.</p>';
+        } else {
+            renderVideoList(structure, videoListEl);
+        }
+   
+
+videoPlayer.addEventListener('timeupdate', updateProgress);
+videoPlayer.addEventListener('ended', () => {
+    if (!currentlyPlaying) return;
+    const video = currentVideos.find(v => v.id === currentlyPlaying.id);
+    if (video) {
+        video.completed = true;
+        updateProgress();
+        window.electronAPI.updateProgress({ dataPath: currentDataPath, video });
+    }
+});
+
+// Controles da janela
+document.getElementById('minimizeBtn').addEventListener('click', async () => {
+    await window.electronAPI.windowControls.minimize();
+});
+
+document.getElementById('maximizeBtn').addEventListener('click', async () => {
+    await window.electronAPI.windowControls.maximize();
+});
+
+document.getElementById('closeBtn').addEventListener('click', async () => {
+    await window.electronAPI.windowControls.close();
 });
 
 // Estado inicial da UI
