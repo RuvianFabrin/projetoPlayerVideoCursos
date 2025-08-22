@@ -93,7 +93,7 @@ function createWindow() {
     }
   });
 
-  win.webContents.openDevTools(); // Descomente para debugar
+  //win.webContents.openDevTools(); // Descomente para debugar
   win.loadFile('index.html');
 }
 

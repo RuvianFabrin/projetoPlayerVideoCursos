@@ -13,7 +13,10 @@
     "build:css": "tailwindcss -i ./src/input.css -o ./dist/output.css"
   },
   "keywords": [],
-  "author": "",
+  "author": {
+    "name": "Ruvian Souza",
+    "email": "teste@example.com"
+  },
   "license": "ISC",
   "build": {
     "appId": "com.videoplayer.app",
@@ -23,6 +26,8 @@
     },
     "files": [
       "**/*",
+      "dist/**/*",
+      "src/**/*",
       "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
       "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
       "!**/node_modules/*.d.ts",
@@ -42,8 +47,7 @@
           "arch": ["x64"]
         }
       ],
-      "icon": "build/icon.ico",
-      "shortcutName": "Video Player com Progresso"
+      "icon": "build/icon.ico"
     },
     "nsis": {
       "oneClick": false,
