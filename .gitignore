@@ -1,0 +1,38 @@
+# Dependências
+node_modules/
+package-lock.json
+
+# Arquivos de dados e cache
+*.json
+!package.json
+!.github/**/*.json
+*.log
+.DS_Store
+
+# Permitir arquivos de prompt
+!.github/prompts/*.prompt.md
+
+# Arquivos de ambiente
+.env
+.env.local
+.env.*.local
+
+# Arquivos de build e distribuição
+dist/
+build/
+*.exe
+*.dmg
+*.app
+*.zip
+
+# IDEs e editores
+.idea/
+.vscode/
+*.swp
+*.swo
+*.swn
+*.bak
+
+# Arquivos temporários
+tmp/
+temp/

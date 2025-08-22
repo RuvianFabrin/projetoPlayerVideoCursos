@@ -1,0 +1,18 @@
+{
+  "name": "electron-video-player",
+  "version": "1.0.0",
+  "description": "Um player de vídeo local que salva o progresso.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "nodemon --watch . --exec electron ."
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "electron": "^28.3.3",
+    "electron-reload": "^2.0.0-alpha.1",
+    "nodemon": "^3.1.10"
+  }
+}
